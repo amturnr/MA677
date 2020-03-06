@@ -1,0 +1,174 @@
+HandSanitizer
+========================================================
+author: Alison Turner
+date: March 6, 2020
+autosize: true
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(tidyverse)
+library(ggplot2)
+
+```
+The Background
+========================================================
+
+After installing hand sanitizer dispensers, a hospital undertakes an educational program for 23 nurses on the importance of using hand sanitizer before entering patient rooms.The nurses' use of hand sanitizer is observed before and after the training.  
+
+Before the educational program nurses were observed visiting 51 patient rooms, and they used sanitizer only 13 times. Assume that $p$ is the probability that a nurse uses handsanitizer two months after the training. The success of the program will be evaluated by comparing $p$ with 13/51, which is the proportion of visits where hand sanitizer was used before the educational program.
+
+
+The Directive
+========================================================
+Calculate the posterior $pdf$ for $p$ using two prior distributions for $p$:
+
+- $p∼U(0,1)$, which might be more conveniently expressed as a beta distribution.
+- $p∼Beta(13,38)$, which has mean = 13/51.
+
+The Directive: Part 1
+========================================================
+
+
+```{r, echo=FALSE}
+#data set up
+set.seed(123)
+
+pre <- data.frame(c(rep(0,38),rep(1,13)))
+pre$study <- "pre"
+names(pre)[1] <- "used"
+pre$used <- as.numeric(pre$used)
+
+post <- data.frame(c(rep(0,6),rep(1,50)))
+post$study <- "post"
+names(post)[1] <- "used"
+post$used <- as.numeric(post$used)
+
+sanitizer <- data.frame(rbind(pre,post))
+
+rows <- sample(nrow(sanitizer))
+sanitizer <- sanitizer[rows,]
+sanitizer$used <- as.numeric(sanitizer$used)
+
+mu_pre <- mean(sanitizer$used[sanitizer$study=="pre"])
+sig_pre <- sd(sanitizer$used[sanitizer$study=="pre"])
+
+```
+
+```{r,echo=FALSE}
+# number of rooms
+n_samples <- 56
+
+# number of nurses
+n_nurses <- 23 
+
+ # probability of success with a uniform prior representing our uncertainty
+proportion_sanitizer <- runif(n = n_samples, min = 0.0, max = 0.2)
+
+n_sanitizer <- rbinom(n = n_samples, size = n_nurses, prob = proportion_sanitizer)
+
+prior <- data.frame(n_samples, n_nurses, proportion_sanitizer, n_sanitizer)
+
+posterior  <- prior[prior$n_sanitizer < 13, ]
+
+prior2 <- posterior
+
+
+n_samples <-  nrow(prior2)
+
+n_nurses <- 23
+
+prior$n_sanitizer <- rbinom(n=n_samples, size = n_nurses, 
+                           prob=prior$proportion_sanitizer)
+
+hist(prior$n_sanitizer)
+
+sum(prior$n_sanitizer >= 13) / length(prior$n_sanitizer)
+```
+
+***
+
+$p∼U(0,1)$ - the beta distribution
+
+The Directive: Part 2
+========================================================
+
+
+
+```{r, echo=FALSE}
+
+pre_alpha <- ((1-mu_pre)/(sig_pre^2)/1/mu_pre)*mu_pre^2
+pre_beta <- pre_alpha*(1/(mu_pre)-1)
+
+#pre_alpha/(pre_alpha+pre_beta)
+
+
+bayes_avg <- (13+pre_alpha)/(51+pre_alpha+pre_beta)
+
+#(50+pre_alpha)/(56+pre_alpha+pre_beta)
+colores <- ifelse(sanitizer$study=="pre","lightgreen","dodgerblue")
+
+ggplot(sanitizer, aes(study, used)) +
+  geom_hline(yintercept = pre_alpha / (pre_alpha  + pre_beta), color = "red", lty = 2) +
+  geom_jitter(color=colores) +
+  geom_abline(color = "red") +
+  scale_colour_gradient(trans = "log", breaks = 10 ^ (1:5)) +
+  xlab("Known Sanitizing average") +
+  ylab("Empirical Bayes sanitizing average")
+
+
+```
+***
+$p∼Beta(13,38)$, which has mean = 13/51.
+
+$$ \alpha = .9803 $$
+$$ \beta = 2.866 $$
+
+$$ (13+\alpha)/(51+\alpha+\beta) $$
+= 25.5% handsanitizer use rate
+
+
+Comparison to the result
+========================================================
+
+Two months after the training, the nurses were observed visiting 56 patient rooms, and they used sanitizer in 50 of the 56 visits.
+
+When calculating this situation with the posterior distribution you get the result:
+$$ (51+\alpha)/(56+\alpha+\beta) = 85.2% $$
+which is slightly worse than the actual of 89.2%
+
+
+
+```{r, echo=FALSE}
+
+mu_post <- mean(sanitizer$used[sanitizer$study=="post"])
+sig_post <- sd(sanitizer$used[sanitizer$study=="post"])
+#dbeta(sanitizer$used,1,1)
+#pbeta(sanitizer$used,1,1)
+
+
+#fitdistr(sanitizer$used,"beta",start=as.list(unique(sanitizer$study)))
+
+colores <- ifelse(sanitizer$study=="pre","lightblue","darkblue")
+
+#plot(sanitizer$used,col=colores)
+```
+
+Acknowledgements
+========================================================
+This being my first go round with Bayes, priors, and posteriors I was thankful for the resources provided by David Robinson, who has a spectacular blog and github repo that go through the use of the Beta distribution and help to put it's use into practical terms. Additionally, Larry Wasserman's lecture on Bayes, and Kathryn Haglich's passion for Bayesian methods were great for context. 
+
+
+http://varianceexplained.org/statistics/beta_distribution_and_baseball/
+
+http://www.stat.cmu.edu/~larry/=sml/Bayes.pdf
+
+https://rpubs.com/klinares/443186
+
+
+Questions
+========================================================
+- In a study where there wasn't such a stark change in sanitizer use, how would the use of priors change? 
+- If this study were to be done in other hospitals, how could we use this information to inform there? Can new pieces of information be brought in to the prior on each iteration?
+
+(food for thought over spring break!)
